@@ -1,9 +1,6 @@
 use dotenv::dotenv;
 use futures::future::BoxFuture;
-use reqwest::{
-    header::{ACCEPT, AUTHORIZATION, USER_AGENT},
-    Response,
-};
+use reqwest::header::{HeaderMap, ACCEPT, AUTHORIZATION, USER_AGENT};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
@@ -31,8 +28,8 @@ fn get_issues_wrapper(url: Option<String>) -> BoxFuture<'static, Vec<Issue>> {
     Box::pin(get_issues(url))
 }
 
-fn construct_new_url(response: &Response) -> Option<String> {
-    response.headers().get("link").and_then(|link_header| {
+fn construct_new_url(headers: &HeaderMap) -> Option<String> {
+    headers.get("link").and_then(|link_header| {
         link_header.to_str().ok().and_then(|link_value| {
             link_value.contains("rel=\"next\"").then(|| {
                 link_value
@@ -61,40 +58,28 @@ async fn get_issues(url: Option<String>) -> Vec<Issue> {
         .header(ACCEPT, "application/vnd.github+json")
         .send()
         .await;
-    match response {
-        Ok(response) => {
-            if response.status() != 200 {
-                return Vec::new();
-            }
 
-            let new_request_url = construct_new_url(&response);
+    let response = match response {
+        Ok(res) if res.status().is_success() => res,
+        _ => return Vec::new(),
+    };
+    // TODO: Maybe remove the clone here.
+    let response_headers = response.headers().clone();
 
-            let resolved_response = response
-                .json::<Vec<Issue>>()
-                .await
-                .expect("something went wrong while parsing")
-                .into_iter()
-                .filter(|issue| issue.pull_request.is_none())
-                .collect::<Vec<_>>();
+    let issues = response
+        .json::<Vec<Issue>>()
+        .await
+        .expect("something went wrong while parsing")
+        .into_iter()
+        .filter(|issue| issue.pull_request.is_none())
+        .collect::<Vec<_>>();
 
-            match new_request_url {
-                Some(request_url) => {
-                    let issues_next_page = get_issues_wrapper(Some(request_url)).await;
-
-                    return resolved_response
-                        .into_iter()
-                        .chain(issues_next_page)
-                        .collect();
-                }
-                None => {
-                    return resolved_response;
-                }
-            }
-        }
-        Err(_) => {
-            return Vec::new();
-        }
+    if let Some(new_url) = construct_new_url(&response_headers) {
+        let more_issues = get_issues_wrapper(Some(new_url)).await;
+        return issues.into_iter().chain(more_issues).collect();
     }
+
+    issues
 }
 
 async fn get_issue_reactions(issue_id: usize) -> Vec<IssueReaction> {
