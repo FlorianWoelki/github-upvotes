@@ -1,5 +1,5 @@
 use dotenv::dotenv;
-use futures::future::BoxFuture;
+use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
 use reqwest::header::{HeaderMap, ACCEPT, AUTHORIZATION, USER_AGENT};
 use serde::{Deserialize, Serialize};
 
@@ -83,6 +83,7 @@ async fn get_issues(url: Option<String>) -> Vec<Issue> {
 }
 
 async fn get_issue_reactions(issue_id: usize) -> Vec<IssueReaction> {
+    let token = std::env::var("GITHUB_PAT").expect("GITHUB_PAT must be set");
     let request_url = format!(
         "https://api.github.com/repos/{owner}/{repo}/issues/{issue_id}/reactions",
         owner = "FlorianWoelki",
@@ -92,25 +93,46 @@ async fn get_issue_reactions(issue_id: usize) -> Vec<IssueReaction> {
     let client = reqwest::Client::new();
     let response = client
         .get(&request_url)
+        .header(AUTHORIZATION, format!("Bearer {token}"))
         .header(USER_AGENT, "rust web-api")
+        .header(ACCEPT, "application/vnd.github+json")
         .send()
-        .await
-        .expect("something went wrong while fetching");
-    let resolved_response = response
+        .await;
+    let response = match response {
+        Ok(res) if res.status().is_success() => res,
+        _ => return Vec::new(),
+    };
+    let reactions = response
         .json::<Vec<IssueReaction>>()
         .await
         .expect("something went wrong while parsing");
-    resolved_response
+    reactions
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     dotenv().ok();
 
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    let issues = runtime.block_on(get_issues(None));
+    let issues = get_issues(None).await;
+    let mut futures = FuturesUnordered::new();
 
     for issue in &issues {
-        println!("Issue: {}", issue.title)
+        let issue_number = issue.number;
+        futures.push(async move {
+            let reactions = get_issue_reactions(issue_number).await;
+            (issue_number, reactions)
+        });
+    }
+
+    let mut results = Vec::new();
+    while let Some((number, reactions)) = futures.next().await {
+        results.push((number, reactions));
+    }
+
+    for (number, reactions) in results {
+        println!("Issue: {}", number);
+        println!("Reactions: {:?}", reactions);
+        println!("---");
     }
 
     println!("Amount of issues: {}", issues.len())
