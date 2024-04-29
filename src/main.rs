@@ -128,19 +128,18 @@ async fn main() {
 
     let mut results: HashMap<usize, usize> = HashMap::new();
     while let Some((number, reactions)) = futures.next().await {
-        *results.entry(number).or_insert(0) += reactions
-            .into_iter()
-            .filter(|reaction| reaction.content == "+1")
-            .count();
+        let reactions_count = reactions.iter().filter(|r| r.content == "+1").count();
+        results
+            .entry(number)
+            .and_modify(|e| *e += reactions_count)
+            .or_insert(reactions_count);
     }
 
-    let mut sorted_result = results
-        .iter()
-        .collect::<Vec<_>>()
+    let mut sorted_result: Vec<_> = results
         .into_iter()
-        .filter(|a| *a.1 > 0)
-        .collect::<Vec<_>>();
-    sorted_result.sort_by(|a, b| b.1.cmp(a.1));
+        .filter(|&(_, count)| count > 0)
+        .collect();
+    sorted_result.sort_by(|a, b| b.1.cmp(&a.1));
 
     let now = chrono::Utc::now();
     println!("*Updated on {} (UTC)*", now.to_rfc2822());
