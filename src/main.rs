@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use dotenv::dotenv;
 use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
 use reqwest::header::{HeaderMap, ACCEPT, AUTHORIZATION, USER_AGENT};
@@ -20,7 +22,7 @@ struct Issue {
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 struct IssueReaction {
-    content: String,
+    content: String, // could be '+1'
     user: User,
 }
 
@@ -124,16 +126,26 @@ async fn main() {
         });
     }
 
-    let mut results = Vec::new();
+    let mut results: HashMap<usize, usize> = HashMap::new();
     while let Some((number, reactions)) = futures.next().await {
-        results.push((number, reactions));
+        *results.entry(number).or_insert(0) += reactions
+            .into_iter()
+            .filter(|reaction| reaction.content == "+1")
+            .count();
     }
 
-    for (number, reactions) in results {
-        println!("Issue: {}", number);
-        println!("Reactions: {:?}", reactions);
-        println!("---");
-    }
+    let mut sorted_result = results
+        .iter()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .filter(|a| *a.1 > 0)
+        .collect::<Vec<_>>();
+    sorted_result.sort_by(|a, b| b.1.cmp(a.1));
 
-    println!("Amount of issues: {}", issues.len())
+    let now = chrono::Utc::now();
+    println!("*Updated on {} (UTC)*", now.to_rfc2822());
+
+    for (index, (issue_number, upvotes)) in sorted_result.iter().enumerate() {
+        println!("{}. #{} ({} 👍)", index + 1, issue_number, upvotes)
+    }
 }
