@@ -26,8 +26,12 @@ struct IssueReaction {
     user: User,
 }
 
-fn get_issues_wrapper(url: Option<String>) -> BoxFuture<'static, Vec<Issue>> {
-    Box::pin(get_issues(url))
+fn get_issues_wrapper(
+    owner: String,
+    repository: String,
+    url: Option<String>,
+) -> BoxFuture<'static, Vec<Issue>> {
+    Box::pin(get_issues(owner, repository, url))
 }
 
 fn construct_new_url(headers: &HeaderMap) -> Option<String> {
@@ -45,12 +49,12 @@ fn construct_new_url(headers: &HeaderMap) -> Option<String> {
     })
 }
 
-async fn get_issues(url: Option<String>) -> Vec<Issue> {
+async fn get_issues(owner: String, repository: String, url: Option<String>) -> Vec<Issue> {
     let token = std::env::var("GITHUB_PAT").expect("GITHUB_PAT must be set");
     let request_url = url.unwrap_or(format!(
         "https://api.github.com/repos/{owner}/{repo}/issues?state=open&page=1&per_page=100",
-        owner = "FlorianWoelki",
-        repo = "obsidian-iconize",
+        owner = owner,
+        repo = repository,
     ));
     let client = reqwest::Client::new();
     let response = client
@@ -77,7 +81,7 @@ async fn get_issues(url: Option<String>) -> Vec<Issue> {
         .collect::<Vec<_>>();
 
     if let Some(new_url) = construct_new_url(&response_headers) {
-        let more_issues = get_issues_wrapper(Some(new_url)).await;
+        let more_issues = get_issues_wrapper(owner, repository, Some(new_url)).await;
         return issues.into_iter().chain(more_issues).collect();
     }
 
@@ -115,7 +119,12 @@ async fn get_issue_reactions(issue_id: usize) -> Vec<IssueReaction> {
 async fn main() {
     dotenv().ok();
 
-    let issues = get_issues(None).await;
+    let owner = std::env::args().nth(1).expect("owner name is required");
+    let repository = std::env::args()
+        .nth(2)
+        .expect("repository name is required");
+
+    let issues = get_issues(owner, repository, None).await;
     let mut futures = FuturesUnordered::new();
 
     for issue in &issues {
