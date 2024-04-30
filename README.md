@@ -10,3 +10,11 @@ Create a `.env` file in the root of the project with the following content:
 ```sh
 GITHUB_PAT=your_github_personal_access_token
 ```
+
+## Running the project
+
+To run the project, execute the following command:
+
+```sh
+cargo run -- <owner> <repository>
+```
