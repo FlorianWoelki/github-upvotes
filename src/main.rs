@@ -88,12 +88,16 @@ async fn get_issues(owner: String, repository: String, url: Option<String>) -> V
     issues
 }
 
-async fn get_issue_reactions(issue_id: usize) -> Vec<IssueReaction> {
+async fn get_issue_reactions(
+    owner: String,
+    repository: String,
+    issue_id: usize,
+) -> Vec<IssueReaction> {
     let token = std::env::var("GITHUB_PAT").expect("GITHUB_PAT must be set");
     let request_url = format!(
         "https://api.github.com/repos/{owner}/{repo}/issues/{issue_id}/reactions",
-        owner = "FlorianWoelki",
-        repo = "obsidian-iconize",
+        owner = owner,
+        repo = repository,
         issue_id = issue_id
     );
     let client = reqwest::Client::new();
@@ -124,14 +128,18 @@ async fn main() {
         .nth(2)
         .expect("repository name is required");
 
-    let issues = get_issues(owner, repository, None).await;
+    let issues = get_issues(owner.clone(), repository.clone(), None).await;
     let mut futures = FuturesUnordered::new();
 
     for issue in &issues {
         let issue_number = issue.number;
-        futures.push(async move {
-            let reactions = get_issue_reactions(issue_number).await;
-            (issue_number, reactions)
+        futures.push({
+            let owner = owner.clone();
+            let repository = repository.clone();
+            async move {
+                let reactions = get_issue_reactions(owner, repository, issue_number).await;
+                (issue_number, reactions)
+            }
         });
     }
 
