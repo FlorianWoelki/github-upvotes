@@ -51,6 +51,7 @@ fn construct_new_url(headers: &HeaderMap) -> Option<String> {
 
 async fn get_issues(owner: String, repository: String, url: Option<String>) -> Vec<Issue> {
     let token = std::env::var("GITHUB_PAT").expect("GITHUB_PAT must be set");
+    let user_agent = std::env::var("USER_AGENT").expect("USER_AGENT must be set");
     let request_url = url.unwrap_or(format!(
         "https://api.github.com/repos/{owner}/{repo}/issues?state=open&page=1&per_page=100",
         owner = owner,
@@ -60,7 +61,7 @@ async fn get_issues(owner: String, repository: String, url: Option<String>) -> V
     let response = client
         .get(&request_url)
         .header(AUTHORIZATION, format!("Bearer {token}"))
-        .header(USER_AGENT, "FlorianWoelki")
+        .header(USER_AGENT, user_agent)
         .header(ACCEPT, "application/vnd.github+json")
         .send()
         .await;

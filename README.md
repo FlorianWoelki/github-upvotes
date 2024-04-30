@@ -9,6 +9,7 @@ Create a `.env` file in the root of the project with the following content:
 
 ```sh
 GITHUB_PAT=your_github_personal_access_token
+USER_AGENT=your_github_username
 ```
 
 ## Running the project
