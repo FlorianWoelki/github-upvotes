@@ -160,7 +160,7 @@ async fn main() {
     sorted_result.sort_by(|a, b| b.1.cmp(&a.1));
 
     let now = chrono::Utc::now();
-    println!("*Updated on {} (UTC)*", now.to_rfc2822());
+    println!("*Updated on {} (UTC)*\n", now.format("%d-%m-%Y %H:%M:%S"));
 
     for (index, (issue_number, upvotes)) in sorted_result.iter().enumerate() {
         println!("{}. #{} ({} 👍)", index + 1, issue_number, upvotes)
