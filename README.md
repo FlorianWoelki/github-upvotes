@@ -17,5 +17,5 @@ USER_AGENT=your_github_username
 To run the project, execute the following command:
 
 ```sh
-cargo run -- <owner> <repository>
+cargo run -- <owner> <repository> <limit>
 ```

@@ -128,6 +128,11 @@ async fn main() {
     let repository = std::env::args()
         .nth(2)
         .expect("repository name is required");
+    let limit = std::env::args()
+        .nth(3)
+        .expect("limit is required")
+        .parse::<usize>()
+        .expect("limit must be a number");
 
     let issues = get_issues(owner.clone(), repository.clone(), None).await;
     let mut futures = FuturesUnordered::new();
@@ -163,6 +168,9 @@ async fn main() {
     println!("*Updated on {} (UTC)*\n", now.format("%d-%m-%Y %H:%M:%S"));
 
     for (index, (issue_number, upvotes)) in sorted_result.iter().enumerate() {
+        if index >= limit {
+            break;
+        }
         println!("{}. #{} ({} 👍)", index + 1, issue_number, upvotes)
     }
 
