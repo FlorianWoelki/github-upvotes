@@ -26,11 +26,11 @@ struct IssueReaction {
     user: User,
 }
 
-fn get_issues_wrapper(
-    owner: String,
-    repository: String,
+fn get_issues_wrapper<'a>(
+    owner: &'a str,
+    repository: &'a str,
     url: Option<String>,
-) -> BoxFuture<'static, Vec<Issue>> {
+) -> BoxFuture<'a, Vec<Issue>> {
     Box::pin(get_issues(owner, repository, url))
 }
 
@@ -49,7 +49,7 @@ fn construct_new_url(headers: &HeaderMap) -> Option<String> {
     })
 }
 
-async fn get_issues(owner: String, repository: String, url: Option<String>) -> Vec<Issue> {
+async fn get_issues(owner: &str, repository: &str, url: Option<String>) -> Vec<Issue> {
     let token = std::env::var("GITHUB_PAT").expect("GITHUB_PAT must be set");
     let user_agent = std::env::var("USER_AGENT").expect("USER_AGENT must be set");
     let request_url = url.unwrap_or(format!(
@@ -70,8 +70,7 @@ async fn get_issues(owner: String, repository: String, url: Option<String>) -> V
         Ok(res) if res.status().is_success() => res,
         _ => return Vec::new(),
     };
-    // TODO: Maybe remove the clone here.
-    let response_headers = response.headers().clone();
+    let response_headers = response.headers().to_owned();
 
     let issues = response
         .json::<Vec<Issue>>()
@@ -134,7 +133,7 @@ async fn main() {
         .parse::<usize>()
         .expect("limit must be a number");
 
-    let issues = get_issues(owner.clone(), repository.clone(), None).await;
+    let issues = get_issues(&owner, &repository, None).await;
     let mut futures = FuturesUnordered::new();
 
     for issue in &issues {
